@@ -1,0 +1,6 @@
+Transaction_ID,Customer_Name,Product,Quantity,Unit_Price,Total_Amount,Date
+TXN-101,Acme Corp,Enterprise SaaS,2,1200.00,2400.00,2026-08-01
+TXN-102,TechStart Inc,AI Credits,10,50.00,500.00,2026-08-03
+TXN-103,Global Logistics,Custom Integration,1,3500.00,3500.00,2026-08-10
+TXN-104,Nexus Systems,Enterprise SaaS,1,1200.00,1200.00,2026-08-15
+TXN-105,Apex Media,Support Package,3,300.00,900.00,2026-08-20

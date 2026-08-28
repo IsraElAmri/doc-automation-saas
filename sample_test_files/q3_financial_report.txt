@@ -1,0 +1,14 @@
+ITGATE GROUP - Q3 2026 FINANCIAL SUMMARY
+
+EXECUTIVE SUMMARY:
+In Q3 2026, ITGate Group achieved a total revenue of .2M, representing a 18% year-over-year increase.
+Operating expenses were maintained at .6M, resulting in a net profit margin of 38%.
+
+KEY HIGHLIGHTS:
+- Cloud SaaS Subscriptions grew by 24% with 150 new enterprise clients.
+- Customer Acquisition Cost (CAC) decreased by 12% due to improved AI marketing automation.
+- Net Promoter Score (NPS) reached an all-time high of 78.
+
+RISKS & OUTLOOK:
+- Increasing server infrastructure costs due to high LLM inference usage.
+- Q4 projected revenue target: .0M.

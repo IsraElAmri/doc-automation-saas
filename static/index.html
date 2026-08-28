@@ -1,0 +1,149 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>DocAI — Document Automation</title>
+    <meta name="description" content="Upload documents, extract key info with AI, and chat about your documents.">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="/static/style.css">
+</head>
+<body>
+
+    <div class="app-container">
+        
+        <!-- ── Sidebar ──────────────────────────────────────────── -->
+        <aside class="sidebar" id="sidebar">
+            <div class="brand-header">
+                <div class="brand-title">
+                    <div class="brand-icon">
+                        <svg viewBox="0 0 24 24"><path d="M14 2H6c-1.1 0-1.99.9-1.99 2L4 20c0 1.1.89 2 1.99 2H18c1.1 0 2-.9 2-2V8l-6-6zm2 16H8v-2h8v2zm0-4H8v-2h8v2zm-3-5V3.5L18.5 9H13z"/></svg>
+                    </div>
+                    DocAI
+                </div>
+                <div id="user-profile" style="display: none; align-items: center; gap: 8px;">
+                    <button class="logout-btn" onclick="logout()" title="Logout">Log out</button>
+                </div>
+            </div>
+
+            <div class="doc-list-header">
+                <span>Documents</span>
+                <button class="btn-upload-sm" onclick="switchView('upload')" style="color: var(--primary); font-size: 1.2rem; line-height: 1;" title="Upload new document">+</button>
+            </div>
+
+            <div class="document-list" id="documents-grid">
+                <!-- Populated by JS -->
+                <!-- Shimmer state template for loading -->
+                <div class="doc-card" style="display: none;" id="doc-shimmer">
+                    <div class="skeleton skeleton-title"></div>
+                    <div class="skeleton skeleton-meta"></div>
+                </div>
+            </div>
+        </aside>
+
+        <!-- ── Main Content ─────────────────────────────────────── -->
+        <main class="main-panel">
+            
+            <!-- Global Banners -->
+            <div class="banner banner-error" id="banner-error">
+                <span id="banner-error-text">Something went wrong. Try again.</span>
+                <span class="banner-close" onclick="document.getElementById('banner-error').style.display='none'">✕</span>
+            </div>
+            <div class="banner banner-warning" id="banner-warning">
+                <span id="banner-warning-text">Slow down — you've hit the request limit. Try again in 60s.</span>
+            </div>
+
+            <!-- Upload View -->
+            <section class="view-section active" id="view-upload">
+                <div class="upload-tray">
+                    <div class="drop-zone" id="upload-zone">
+                        <span class="upload-icon">☁</span>
+                        <h2 class="upload-title">Drop your first document</h2>
+                        <p class="upload-subtitle">or <label for="file-input" style="color: var(--primary); cursor: pointer;">browse files</label></p>
+                        
+                        <p class="upload-formats">Supports: PDF, JPG, PNG, BMP, TIFF, TXT, MD, CSV</p>
+                        
+                        <input type="file" id="file-input" accept=".pdf,.jpg,.jpeg,.png,.bmp,.tiff,.tif,.webp,.txt,.md,.csv" hidden>
+                        
+                        <div class="progress-wrapper" id="upload-progress-wrapper">
+                            <div class="progress-header">
+                                <span class="progress-filename" id="upload-filename">document.pdf</span>
+                                <span class="progress-cancel" id="upload-cancel">Cancel</span>
+                            </div>
+                            <div class="progress-container" style="display: block;">
+                                <div class="progress-bar" id="upload-progress-bar"></div>
+                            </div>
+                        </div>
+
+                        <!-- Paper slide-in ghost -->
+                        <div class="paper-ghost"></div>
+                    </div>
+                </div>
+            </section>
+
+            <!-- Chat View -->
+            <section class="view-section" id="view-chat">
+                <div class="chat-container">
+                    <div class="chat-header">
+                        <span class="chat-doc-title" id="chat-active-doc-title">Select a document to chat</span>
+                    </div>
+
+                    <div class="chat-messages" id="chat-messages">
+                        <div class="chat-welcome">
+                            <span class="chat-welcome-icon">💬</span>
+                            <p>Ask anything about this document.</p>
+                        </div>
+                    </div>
+
+                    <div class="chat-input-area">
+                        <input type="text" id="chat-input" class="chat-input" placeholder="Type your question..." autocomplete="off" disabled>
+                        <button class="btn-send" id="chat-send" disabled>➤</button>
+                    </div>
+                </div>
+            </section>
+
+        </main>
+    </div>
+
+    <!-- ── Auth Modal ─────────────────────────────────────── -->
+    <div class="modal-overlay active" id="auth-modal">
+        <div class="modal">
+            <div class="modal-header">
+                <h2 id="auth-modal-title">Sign In</h2>
+            </div>
+            <div class="modal-body">
+                <form id="auth-form" onsubmit="handleAuthSubmit(event)">
+                    <div class="form-group">
+                        <label>Email address</label>
+                        <input type="email" id="auth-email" class="form-input" required>
+                    </div>
+                    <div class="form-group">
+                        <label>Password</label>
+                        <input type="password" id="auth-password" class="form-input" required minlength="6">
+                    </div>
+                    <button type="submit" class="btn-block" id="auth-submit-btn">Sign In</button>
+                </form>
+                <div class="auth-switch">
+                    <span id="auth-toggle-text">Don't have an account?</span>
+                    <button type="button" onclick="toggleAuthMode()">Register</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- ── Extract / OCR Status Modal ─────────────────────── -->
+    <div class="modal-overlay" id="extract-modal">
+        <div class="modal" style="max-width: 300px; text-align: center;">
+            <div class="modal-body" id="modal-body" style="padding: 32px 24px;">
+                <div class="spinner-inline" style="width: 24px; height: 24px; border-width: 3px; margin-bottom: 16px;"></div>
+                <h3 style="font-size: 1rem;">Reading document...</h3>
+                <p style="font-size: 0.85rem; color: var(--text-muted); margin-top: 8px;">Extracting text with AI.</p>
+            </div>
+        </div>
+    </div>
+
+    <script src="/static/app.js"></script>
+</body>
+</html>

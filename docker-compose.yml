@@ -1,0 +1,37 @@
+services:
+  db:
+    image: postgres:16-alpine
+    container_name: doc_automation_db
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: doc_automation
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+    ports:
+      - "5432:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d doc_automation"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  web:
+    build: .
+    container_name: doc_automation_web
+    restart: unless-stopped
+    depends_on:
+      db:
+        condition: service_healthy
+    env_file:
+      - .env
+    environment:
+      - DB_URL=${DB_URL:-postgresql://postgres:${POSTGRES_PASSWORD}@db:5432/doc_automation}
+    ports:
+      - "8000:8000"
+    volumes:
+      - ./uploads:/app/uploads
+
+volumes:
+  pgdata:
