@@ -47,7 +47,7 @@ jobs:
 
       - name: Run Pytest Test Suite
         env:
-          DATABASE_URL: postgresql://postgres:postgrespassword@localhost:5432/doc_automation_test
+          DATABASE_URL: postgresql+psycopg://postgres:postgrespassword@localhost:5432/doc_automation_test
           SECRET_KEY: ci-secret-key-testing-only-replace-in-prod
           ADMIN_TOKEN: ci-admin-token-testing-only
           GEMINI_API_KEY: mock-gemini-key
