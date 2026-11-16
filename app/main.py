@@ -4,6 +4,7 @@ Endpoints: /auth/register, /auth/login, /auth/me, /upload, /extract, /ask, /docu
 Includes vector-similarity search RAG, rate-limiting, streaming size limits, magic-byte validation, and threadpool concurrency.
 """
 import os
+import asyncio
 import shutil
 import uuid
 import json
@@ -12,7 +13,7 @@ import time
 from datetime import datetime, timezone
 from pathlib import Path
 
-from fastapi import FastAPI, UploadFile, File, Depends, HTTPException, Query, Request, status
+from fastapi import FastAPI, UploadFile, File, Depends, HTTPException, Query, Request, Response, status
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 from fastapi.responses import HTMLResponse
@@ -179,17 +180,23 @@ class ChatHistoryResponse(BaseModel):
 
 @app.get("/admin/metrics")
 def get_metrics(request: Request):
-    """Return application metrics. Secured via ADMIN_TOKEN in Authorization header."""
+    """Return application metrics. Secured via ADMIN_TOKEN in Authorization: Bearer <token> header only.
+    Note: query-parameter token passing was intentionally excluded — tokens in URLs leak through
+    server access logs, browser history, and Referer headers regardless of HTTPS or comparison method.
+    """
     auth_header = request.headers.get("Authorization", "")
     if not auth_header.startswith("Bearer "):
-        raise HTTPException(status_code=401, detail="Missing or invalid Authorization header")
-    
-    token = auth_header.split(" ")[1]
-    # Use constant-time comparison to prevent timing attacks
-    if not secrets.compare_digest(token, ADMIN_TOKEN):
-        raise HTTPException(status_code=401, detail="Invalid admin token")
-        
-    return metrics.snapshot()
+        raise HTTPException(status_code=401, detail="Missing or invalid admin token")
+    admin_token = auth_header.split(" ", 1)[1]
+
+    if not secrets.compare_digest(admin_token.encode("utf-8"), ADMIN_TOKEN.encode("utf-8")):
+        raise HTTPException(status_code=401, detail="Missing or invalid admin token")
+
+    import json
+    return Response(
+        content=json.dumps(metrics.snapshot(), indent=2),
+        media_type="application/json",
+    )
 
 
 # ── Auth Endpoints ───────────────────────────────────────────────────
@@ -425,8 +432,8 @@ async def extract_info(
     db: Session = Depends(get_db),
 ):
     """
-    Extract key information using Gemini AI with 30s timeout and threadpool concurrency.
-    Rate-limited by user_id.
+    Extract key information from document using fast local analysis + optional Gemini AI.
+    Always returns within seconds — never hangs.
     """
     document = (
         db.query(Document)
@@ -446,12 +453,9 @@ async def extract_info(
             filename=document.filename,
             extracted_info=extracted_info,
         )
-    except TimeoutError as e:
-        db.rollback()
-        raise HTTPException(status_code=504, detail=f"Gemini extraction timed out: {e}")
-    except RuntimeError as e:
-        db.rollback()
-        raise HTTPException(status_code=502, detail=str(e))
+    except Exception as e:
+        logger.error("Extract failed for document %d: %s", document_id, e)
+        raise HTTPException(status_code=500, detail=f"Extraction failed: {e}")
 
 
 @app.post("/ask/{document_id}", response_model=AskResponse)
@@ -465,7 +469,7 @@ async def ask_question(
 ):
     """
     Ask a question about a document using vector similarity search RAG.
-    Offloads heavy calls to threadpool, handles 30s timeouts with HTTP 504 & db.rollback().
+    Offloads heavy calls to threadpool, handles Gemini timeouts (GEMINI_TIMEOUT_SECONDS) with HTTP 504 & db.rollback().
     """
     document = (
         db.query(Document)

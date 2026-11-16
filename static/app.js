@@ -194,7 +194,7 @@ function renderDocuments() {
                 </div>
                 <div class="doc-card-actions">
                     <button class="view-summary-btn" onclick="event.stopPropagation(); extractDoc(${doc.id}, '${escapeHtml(doc.filename)}')">
-                        ✨ Extract
+                        📋 Key Points
                     </button>
                     <button class="doc-delete-btn" onclick="event.stopPropagation(); deleteDoc(${doc.id}, '${escapeHtml(doc.filename)}')" title="Delete">
                         ✕
@@ -292,14 +292,28 @@ async function extractDoc(docId, filename) {
         modal.classList.remove('active');
 
         if (res.ok) {
-            // Show extracted info cleanly in chat as AI message
-            selectDocument(docId);
-            appendMessage('ai', `**Extracted Information for ${filename}:**\n\n${data.extracted_info}`);
+            // Switch to chat view for this document and wait for history to load first
+            activeDocId = docId;
+            const doc = documents.find(d => d.id === docId);
+            renderDocuments();
+            switchView('chat');
+            if (doc) {
+                document.getElementById('chat-active-doc-title').textContent = doc.filename;
+                document.getElementById('chat-input').disabled = false;
+                document.getElementById('chat-send').disabled = false;
+            }
+            // Wait for chat history to finish loading, then append extract result
+            await loadChatHistory(docId);
+            // Remove "ask anything" welcome message if present
+            const welcome = document.querySelector('.chat-welcome');
+            if (welcome) welcome.remove();
+            appendMessage('ai', `**📋 Key Points for ${filename}:**\n\n${data.extracted_info}`);
         } else {
             showBanner('error', data.detail || 'Extraction failed');
         }
     } catch {
         modal.classList.remove('active');
+        showBanner('error', 'Network error during extraction.');
     }
 }
 

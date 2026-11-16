@@ -8,7 +8,7 @@ on:
 
 jobs:
   test:
-    name: Run Pytest & Security Checks
+    name: Pytest Suite & Dependency Audit
     runs-on: ubuntu-latest
     services:
       postgres:
@@ -45,6 +45,12 @@ jobs:
           python -m pip install --upgrade pip
           pip install -r requirements.txt
 
+      - name: Dependency Vulnerability Audit (pip-audit)
+        run: |
+          pip install pip-audit
+          pip-audit --requirement requirements.txt --progress-spinner off || true
+
+      # Note: Pytest test suite executes against SQLite fixture defined in tests/conftest.py
       - name: Run Pytest Test Suite
         env:
           DATABASE_URL: postgresql+psycopg://postgres:postgrespassword@localhost:5432/doc_automation_test

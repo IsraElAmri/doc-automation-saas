@@ -12,8 +12,8 @@ This application is an enterprise-grade **Document Automation SaaS** that enable
 ### 🌟 Key Capabilities
 - **Multi-Format Processing**: Supports `.pdf`, `.png`, `.jpg`, `.bmp`, `.tiff`, `.txt`, `.md`, `.csv`.
 - **Intelligent OCR**: Uses Tesseract OCR for text extraction from images and scanned files.
-- **AI Document Classification**: Automatically categorizes files into *Invoice & Receipt*, *Contract & Policy*, *Financial Report*, *Technical Proposal*, or *Data Spreadsheet*.
-- **Vector RAG Engine**: Generates embeddings via Google Gemini `text-embedding-004` and performs normalized cosine similarity search to drive context-grounded AI answers (`gemini-2.0-flash`).
+- **Document Classification**: Automatically categorizes files into *Invoice & Receipt*, *Contract & Policy*, *Financial Report*, *Technical Proposal*, or *Data Spreadsheet* using content keyword matching.
+- **Vector RAG Engine**: Generates 3072-dimensional embeddings via Google Gemini `gemini-embedding-001` and performs normalized cosine similarity search to drive context-grounded AI answers (`gemini-3.6-flash`).
 - **Enterprise Observability**: Emits structured JSON logs via `structlog` and collects live, route-normalized metrics at a protected `/admin/metrics` endpoint.
 - **High-Aesthetic UI**: ITGate brand visual design (`#0044EB` primary blue, `#D5E0EB` surface background, Inter font) featuring a drag-and-drop paper tray, paper cards with page-fold details, and global status interceptors.
 
@@ -104,3 +104,20 @@ python -m pytest tests/ --verbose
 - **JWT & Passwords**: Passwords hashed with `bcrypt`. JWT tokens expire according to `ACCESS_TOKEN_EXPIRE_MINUTES`.
 - **Input Validation**: Bounded 64KB streaming size limit (max 10MB) and magic-byte file header verification.
 - **Schema Safety**: Operational rules defined in `.agents/AGENTS.md`.
+
+
+---
+
+## 📸 Screenshots & UI Preview
+
+| Document Upload & Dashboard | Interactive RAG Chat |
+|:---:|:---:|
+| ![Dashboard](docs/screenshots/ui-dashboard.png) | ![Chat](docs/screenshots/ui-chat.png) |
+
+| OCR Text Extraction & Classification | Swagger API Documentation |
+|:---:|:---:|
+| ![OCR Extraction](docs/screenshots/ui-extract.png) | ![Swagger Docs](docs/screenshots/swagger-docs.png) |
+
+| Enterprise Observability & Metrics | RAG Evaluation Benchmark |
+|:---:|:---:|
+| ![Admin Metrics](docs/screenshots/admin-metrics.png) | ![RAG Metrics](docs/screenshots/rag_eval_metrics.png) |

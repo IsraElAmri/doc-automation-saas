@@ -22,3 +22,7 @@ slowapi==0.1.9
 structlog==25.3.0
 python-magic==0.4.27; sys_platform != "win32"
 python-magic-bin==0.4.14; sys_platform == "win32"
+
+# Evaluation harness dependencies (scripts/evaluate_rag.py)
+groq==1.7.0
+rank-bm25==0.2.2

@@ -2,6 +2,7 @@
 Text extraction from PDF, images (Tesseract OCR), and plain text files.
 Also provides text chunking for RAG retrieval.
 """
+import io
 import os
 import magic
 from app.logging_config import get_logger
@@ -25,20 +26,28 @@ TEXT_EXTENSIONS = {".txt", ".md", ".csv"}
 
 def classify_document(text: str, filename: str) -> str:
     """
-    Intelligently classify a document into a category based on content keywords and filename.
+    Classify a document into a category based on whole-word keyword matching in content and filename.
+    Uses word-boundary regex (\\b) to avoid false positives from substrings
+    (e.g. "price" inside "Unit_Price", "system" inside a proposal title).
     """
-    text_lower = (text or "").lower()
-    fn_lower = (filename or "").lower()
+    import re as _re
 
-    if any(k in text_lower or k in fn_lower for k in ["invoice", "receipt", "paid", "total amount", "tax", "price", "bill"]):
+    text_lower = (text or "").lower()
+    fn_lower   = (filename or "").lower()
+    combined   = text_lower + " " + fn_lower
+
+    def _matches(keywords: list[str]) -> bool:
+        return any(_re.search(r"\b" + _re.escape(kw) + r"\b", combined) for kw in keywords)
+
+    if _matches(["invoice", "receipt", "paid", "total amount", "tax", "bill"]):
         return "Invoice & Receipt"
-    elif any(k in text_lower or k in fn_lower for k in ["policy", "contract", "agreement", "terms", "compliance", "clause"]):
+    elif _matches(["policy", "contract", "agreement", "terms", "compliance", "clause"]):
         return "Contract & Policy"
-    elif any(k in text_lower or k in fn_lower for k in ["revenue", "financial", "q1", "q2", "q3", "q4", "profit", "balance"]):
+    elif _matches(["revenue", "financial", "q1", "q2", "q3", "q4", "profit", "balance"]):
         return "Financial Report"
-    elif any(k in text_lower or k in fn_lower for k in ["proposal", "architecture", "sla", "technical", "system"]):
+    elif _matches(["proposal", "architecture", "sla", "technical"]):
         return "Technical Proposal"
-    elif fn_lower.endswith(".csv") or any(k in text_lower for k in ["transaction", "csv", "row", "column"]):
+    elif fn_lower.endswith(".csv") or _matches(["transaction", "csv", "column"]):
         return "Data Spreadsheet"
     else:
         return "General Document"
@@ -115,10 +124,13 @@ def _ocr_pdf_fallback(pdf_path: str) -> str:
             # pypdf can sometimes extract images; process each one
             for image_obj in page.images:
                 try:
-                    img = Image.open(image_obj.data)
+                    img = Image.open(io.BytesIO(image_obj.data))
                     ocr_texts.append(pytesseract.image_to_string(img))
-                except Exception:
-                    pass
+                except Exception as exc:
+                    logger.warning(
+                        "OCR fallback: skipping image on page %d of '%s': %s",
+                        page_num, pdf_path, exc
+                    )
         return "\n".join(ocr_texts)
     except Exception as e:
         logger.error("OCR fallback failed for PDF '%s': %s", pdf_path, e)
@@ -184,7 +196,7 @@ def chunk_text(text: str, chunk_size: int = CHUNK_SIZE, chunk_overlap: int = CHU
     """
     Split text into overlapping chunks for RAG retrieval.
     Uses LangChain RecursiveCharacterTextSplitter when available,
-    with a simple fallback otherwise.
+    with a sliding-window fallback otherwise.
     """
     if not text or not text.strip():
         return []
@@ -199,21 +211,39 @@ def chunk_text(text: str, chunk_size: int = CHUNK_SIZE, chunk_overlap: int = CHU
         )
         return splitter.split_text(text)
     except ImportError:
-        logger.warning("langchain_text_splitters not available; using simple chunking.")
-        return _simple_chunk(text, chunk_size)
+        logger.warning("langchain_text_splitters not available; using simple chunking with overlap.")
+        return _simple_chunk(text, chunk_size=chunk_size, chunk_overlap=chunk_overlap)
 
 
-def _simple_chunk(text: str, chunk_size: int) -> list[str]:
-    """Fallback word-boundary chunker."""
+def _simple_chunk(text: str, chunk_size: int, chunk_overlap: int = CHUNK_OVERLAP) -> list[str]:
+    """Fallback word-boundary chunker with sliding window overlap support."""
     words = text.split()
+    if not words:
+        return []
+
     chunks: list[str] = []
     current: list[str] = []
+    current_len = 0
 
     for word in words:
-        current.append(word)
-        if len(" ".join(current)) >= chunk_size:
+        word_len = len(word) + (1 if current else 0)
+        if current_len + word_len > chunk_size and current:
             chunks.append(" ".join(current))
-            current = []
+            # Calculate sliding window overlap to keep trailing words
+            overlap_words: list[str] = []
+            overlap_len = 0
+            for w in reversed(current):
+                w_len = len(w) + (1 if overlap_words else 0)
+                if overlap_len + w_len <= chunk_overlap:
+                    overlap_words.insert(0, w)
+                    overlap_len += w_len
+                else:
+                    break
+            current = overlap_words
+            current_len = sum(len(w) for w in current) + max(0, len(current) - 1)
+
+        current.append(word)
+        current_len += word_len
 
     if current:
         chunks.append(" ".join(current))

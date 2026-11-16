@@ -49,6 +49,7 @@ else:
 GEMINI_API_KEY: str = os.getenv("GEMINI_API_KEY", "")
 GEMINI_MODEL: str = os.getenv("GEMINI_MODEL", "gemini-3.6-flash")
 GEMINI_TIMEOUT_SECONDS: float = float(os.getenv("GEMINI_TIMEOUT_SECONDS", "30.0"))
+GROQ_API_KEY: str = os.getenv("GROQ_API_KEY", "")
 
 # ── File Upload & Validation Limits ───────────────────────────────────
 UPLOAD_DIR: str = os.getenv("UPLOAD_DIR", "uploads")
@@ -65,3 +66,9 @@ else:
 # ── Chunking defaults ────────────────────────────────────────────────
 CHUNK_SIZE: int = int(os.getenv("CHUNK_SIZE", "500"))
 CHUNK_OVERLAP: int = int(os.getenv("CHUNK_OVERLAP", "50"))
+
+if not (0 <= CHUNK_OVERLAP < CHUNK_SIZE):
+    raise RuntimeError(
+        f"CHUNK_OVERLAP ({CHUNK_OVERLAP}) must satisfy 0 <= CHUNK_OVERLAP < CHUNK_SIZE ({CHUNK_SIZE}). "
+        "Fix your environment variables (default: CHUNK_SIZE=500, CHUNK_OVERLAP=50)."
+    )

@@ -6,7 +6,7 @@ Deploy an enterprise-grade document automation and RAG query portal for processi
 ## 2. Core Features
 - **File Ingestion**: Supports PDF, PNG, JPG, TXT, MD, CSV.
 - **Security**: JWT authentication, bcrypt password hashing, magic byte file header verification.
-- **AI Analytics**: Powered by Google Gemini 2.0 Flash and text-embedding-004.
+- **AI Analytics**: Powered by Google Gemini (gemini-3.6-flash) and gemini-embedding-001.
 - **Observability**: Live structured JSON logging and /admin/metrics endpoint.
 
 ## 3. SLA Targets

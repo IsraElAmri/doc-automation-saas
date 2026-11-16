@@ -22,6 +22,7 @@ RUN pip install --no-cache-dir -r requirements.txt
 # Copy application and configuration code
 COPY app/ ./app/
 COPY config/ ./config/
+COPY static/ ./static/
 
 # Create uploads directory
 RUN mkdir -p uploads

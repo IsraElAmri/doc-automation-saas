@@ -40,7 +40,7 @@ The stack includes:
 
 ## 3. Database Backup Strategy
 
-Data persistence relies on the PostgreSQL volume `postgres_data`. Implement automated backups using `pg_dump` via a cron job on your host server.
+Data persistence relies on the PostgreSQL volume `pgdata`. Implement automated backups using `pg_dump` via a cron job on your host server.
 
 **Automated Daily Backup Script (`backup.sh`)**:
 ```bash
@@ -49,7 +49,7 @@ TIMESTAMP=$(date +%F)
 BACKUP_DIR="/var/backups/doc_automation"
 
 mkdir -p $BACKUP_DIR
-docker exec -t doc-automation-saas-db-1 pg_dumpall -c -U postgres > "$BACKUP_DIR/db_dump_$TIMESTAMP.sql"
+docker exec -t doc_automation_db pg_dumpall -c -U postgres > "$BACKUP_DIR/db_dump_$TIMESTAMP.sql"
 ```
 
 *Recommendation*: Store backups in AWS S3 or Google Cloud Storage using automated lifecycle policies.
