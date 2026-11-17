@@ -42,25 +42,29 @@ Screenshots (synthetic data only):
 > **Scope**: 15-item synthetic Q&A benchmark; all document content is fabricated.
 > Real-world performance may differ.
 
-### Retrieval (k=2)
+### Retrieval (k=2, n=15)
 
 | Method | Precision | Recall | F1 | Hit Rate | MRR |
 |---|---|---|---|---|---|
 | Semantic (cosine similarity in Python) | 60.0% | 96.7% | 72.2% | 100.0% | 0.933 |
-| Tokenized BM25 | 60.0% | 96.7% | 72.2% | 100.0% | 0.967 |
+| BM25 (punctuation-stripped) | 60.0% | 96.7% | 72.2% | 100.0% | 0.967 |
+| BM25 (whitespace tokens) | 56.7% | 93.3% | 68.9% | 100.0% | 0.933 |
+| Chance baseline | 31.7% | 50.0% | 37.8% | 58.9% | 0.575 |
 
-BM25 matches semantic retrieval on this benchmark, plausibly because the synthetic
-documents use precise technical vocabulary that benefits lexical matching at this scale.
+The pilot benchmark cannot separate semantic retrieval from BM25. The marginal gap between semantic retrieval and whitespace BM25 traces to a single test item (`fin-3`) and tokenization handling of punctuation.
 
-### Generation (n=15, Gemini production model)
+### Generation (n=14 evaluated)
 
 | Metric | Value |
 |---|---|
-| Clean responses (no hallucination flagged) | 14 / 15 |
+| Evaluated items | 14 / 15 (1 item excluded due to a judge call fallback during rate limiting; not a hallucination flag) |
 | Faithfulness | 100% |
-| Answer Relevancy (dual LLM judge, 1–5) | 4.93 / 5.0 |
+| Answer Relevancy | 98.6% (~4.93 / 5.0) |
+| Judge Agreement | 100% |
 
-Generation judges: `gpt-oss-120b` and `allam-2-7b` via proxy. Evaluation LLM for generation: Qwen via Groq.
+- **Generator**: Qwen via Groq (used as an evaluation proxy; the deployed application uses Gemini).
+- **Judges**: `gpt-oss-120b` and `allam-2-7b` via API proxy; both judges agree on all 14 evaluated records.
+- **Caveat**: Fact-oriented, straightforward benchmark without unanswerable questions, so model refusal behavior is not measured.
 
 See [`scripts/evaluate_rag.py`](scripts/evaluate_rag.py) and [`scripts/rag_eval_results.json`](scripts/rag_eval_results.json).
 
@@ -70,7 +74,7 @@ See [`scripts/evaluate_rag.py`](scripts/evaluate_rag.py) and [`scripts/rag_eval_
 
 - **No vector index** — embeddings are stored as JSON-serialized lists in PostgreSQL and ranked in-memory via Python cosine similarity; suitable for single-document chunk sets but does not scale to corpus-wide nearest-neighbor indexing without a dedicated vector index or extension.
 - **No at-rest encryption** — stored document text and embeddings are unencrypted in PostgreSQL.
-- **Metrics reset on restart** — in-memory counters only; no Prometheus or persistent metrics store.
+- **Metrics reset on restart** — in-memory counters only; no persistent metrics store.
 - **OCR accuracy unmeasured** — Tesseract performance depends on scan quality; no formal evaluation performed.
 - **Key-info extraction uses regex** — rule-based parser rather than a layout-aware semantic extractor; brittle on non-standard layouts.
 - **Lexical fallback when LLM unavailable** — the fallback path serves BM25 results without generation.
