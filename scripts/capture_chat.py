@@ -17,7 +17,7 @@ async def capture_chat():
         fetch('/auth/login', {
             method: 'POST',
             headers: {'Content-Type': 'application/json'},
-            body: JSON.stringify({email: 'demo_user@itgate.tn', password: 'Password123!'})
+            body: JSON.stringify({email: 'demo@example.com', password: 'Password123!'})
         }).then(r => r.json()).then(data => {
             localStorage.setItem('token', data.access_token);
             location.reload();

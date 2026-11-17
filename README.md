@@ -1,123 +1,159 @@
-# Document Automation SaaS — Enterprise AI Portal
+# Document Automation and RAG Service
 
-> **Smart AI Agent for Document Automation & RAG Querying**
-> Built for ITGate Group — Powered by FastAPI, PostgreSQL, Tesseract OCR, and Google Gemini AI.
+[![Python 3.11](https://img.shields.io/badge/python-3.11-blue.svg)](https://www.python.org/downloads/release/python-3110/)
+[![FastAPI](https://img.shields.io/badge/FastAPI-0.115-009688.svg)](https://fastapi.tiangolo.com/)
+[![PostgreSQL](https://img.shields.io/badge/PostgreSQL-16-336791.svg)](https://www.postgresql.org/)
+[![MIT License](https://img.shields.io/badge/license-MIT-green.svg)](LICENSE)
 
----
-
-## 📌 Project Overview
-
-This application is an enterprise-grade **Document Automation SaaS** that enables users to upload, process, classify, analyze, and query documents using AI-driven RAG (Retrieval-Augmented Generation).
-
-### 🌟 Key Capabilities
-- **Multi-Format Processing**: Supports `.pdf`, `.png`, `.jpg`, `.bmp`, `.tiff`, `.txt`, `.md`, `.csv`.
-- **Intelligent OCR**: Uses Tesseract OCR for text extraction from images and scanned files.
-- **Document Classification**: Automatically categorizes files into *Invoice & Receipt*, *Contract & Policy*, *Financial Report*, *Technical Proposal*, or *Data Spreadsheet* using content keyword matching.
-- **Vector RAG Engine**: Generates 3072-dimensional embeddings via Google Gemini `gemini-embedding-001` and performs normalized cosine similarity search to drive context-grounded AI answers (`gemini-3.6-flash`).
-- **Enterprise Observability**: Emits structured JSON logs via `structlog` and collects live, route-normalized metrics at a protected `/admin/metrics` endpoint.
-- **High-Aesthetic UI**: ITGate brand visual design (`#0044EB` primary blue, `#D5E0EB` surface background, Inter font) featuring a drag-and-drop paper tray, paper cards with page-fold details, and global status interceptors.
+REST API backend and browser interface for document ingestion, OCR, text chunking, and
+retrieval-augmented generation (RAG) Q&A. Developed as an engineering internship project at **ITgate**.
 
 ---
 
-## 🚀 Quick Start Guide
+## Architecture
 
-### Prerequisites
-- **Python**: `3.11`
-- **PostgreSQL**: `15+` (or Docker)
-- **Tesseract OCR**: Installed on host system (or via Docker container)
-
-### 1. Local Setup
-
-```powershell
-# 1. Clone the repository and navigate into it
-cd C:\Users\Isra\doc-automation-saas
-
-# 2. Activate virtual environment
-.\venv\Scripts\activate
-
-# 3. Install dependencies
-pip install -r requirements.txt
-
-# 4. Copy environment template and configure secrets
-cp .env.example .env
+```
+Client (browser / API consumer)
+        |
+        v
+  FastAPI application
+  ├── Auth: static admin token (constant-time comparison) + JWT with per-document ownership checks
+  ├── POST /documents/upload  → Tesseract OCR + text extraction
+  │       └── Chunk (500 tokens, 50 token overlap) → embed via Gemini → store JSON in PostgreSQL
+  ├── POST /chat/{doc_id}     → load chunk embeddings → rank by cosine similarity in Python → Gemini generation
+  ├── GET  /metrics           → in-memory per-route counters (reset on restart)
+  └── Structured JSON logging via structlog
+        |
+        v
+  PostgreSQL 16 (relational storage; embeddings stored as JSON text)
+  (SQLite in CI; PostgreSQL in production)
 ```
 
-Edit `.env` to configure your `DATABASE_URL`, `GEMINI_API_KEY`, and `ADMIN_TOKEN`.
+Screenshots (synthetic data only):
 
-### 2. Launching the Application
-
-```powershell
-python -m uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
-```
-
-Open your browser at **[http://localhost:8000](http://localhost:8000)** to access the web application.
+| Chat interface | Admin dashboard |
+|---|---|
+| ![Chat UI](docs/screenshots/ui-chat.png) | ![Admin dashboard](docs/screenshots/ui-dashboard.png) |
 
 ---
 
-## 🐳 Docker Deployment
+## Pilot Evaluation
 
-To launch the full production stack (FastAPI web server + PostgreSQL database):
+> **Scope**: 15-item synthetic Q&A benchmark; all document content is fabricated.
+> Real-world performance may differ.
+
+### Retrieval (k=2)
+
+| Method | Precision | Recall | F1 | Hit Rate | MRR |
+|---|---|---|---|---|---|
+| Semantic (cosine similarity in Python) | 60.0% | 96.7% | 72.2% | 100.0% | 0.933 |
+| Tokenized BM25 | 60.0% | 96.7% | 72.2% | 100.0% | 0.967 |
+
+BM25 matches semantic retrieval on this benchmark, plausibly because the synthetic
+documents use precise technical vocabulary that benefits lexical matching at this scale.
+
+### Generation (n=15, Gemini production model)
+
+| Metric | Value |
+|---|---|
+| Clean responses (no hallucination flagged) | 14 / 15 |
+| Faithfulness | 100% |
+| Answer Relevancy (dual LLM judge, 1–5) | 4.93 / 5.0 |
+
+Generation judges: `gpt-oss-120b` and `allam-2-7b` via proxy. Evaluation LLM for generation: Qwen via Groq.
+
+See [`scripts/evaluate_rag.py`](scripts/evaluate_rag.py) and [`scripts/rag_eval_results.json`](scripts/rag_eval_results.json).
+
+---
+
+## Limitations
+
+- **No vector index** — embeddings are stored as JSON-serialized lists in PostgreSQL and ranked in-memory via Python cosine similarity; suitable for single-document chunk sets but does not scale to corpus-wide nearest-neighbor indexing without a dedicated vector index or extension.
+- **No at-rest encryption** — stored document text and embeddings are unencrypted in PostgreSQL.
+- **Metrics reset on restart** — in-memory counters only; no Prometheus or persistent metrics store.
+- **OCR accuracy unmeasured** — Tesseract performance depends on scan quality; no formal evaluation performed.
+- **Key-info extraction uses regex** — rule-based parser rather than a layout-aware semantic extractor; brittle on non-standard layouts.
+- **Lexical fallback when LLM unavailable** — the fallback path serves BM25 results without generation.
+- **SQLite in CI, PostgreSQL in production** — CI tests run against SQLite, while production targets PostgreSQL.
+- **15-item benchmark** — results are indicative only; held-out test set evaluation not yet performed.
+
+---
+
+## Stack
+
+| Layer | Technology |
+|---|---|
+| API framework | FastAPI 0.115 |
+| Auth | Static admin token + PyJWT (HS256), bcrypt passwords |
+| OCR | Tesseract via pytesseract |
+| Text chunking | LangChain text splitters (`langchain-text-splitters`) |
+| Embeddings | Google Generative AI (`gemini-embedding-001`, 3072-dim) |
+| Storage & Ranking | PostgreSQL 16 (JSON text column) + Python cosine similarity |
+| Generation | Gemini (production); Qwen via Groq (evaluation) |
+| Logging | structlog 25.3.0 (JSON in production, console in dev) |
+| Testing | Pytest + SQLite in-memory DB |
+| CI | GitHub Actions (test + docker-build jobs) |
+| Deployment | Docker Compose (app + postgres:16-alpine) |
+
+---
+
+## Getting Started
+
+### Docker Compose (recommended)
 
 ```bash
-docker-compose up --build
+git clone https://github.com/IsraElAmri/doc-automation-saas.git
+cd doc-automation-saas
+cp .env.example .env          # fill in GEMINI_API_KEY and SECRET_KEY
+docker compose up --build
 ```
 
-The container automatically installs system dependencies (`tesseract-ocr`, `libpq-dev`, `libmagic1`) and exposes the web app at `http://localhost:8000`.
+The API will be available at `http://localhost:8000`.
+Interactive docs: `http://localhost:8000/docs`
 
----
+### Manual setup
 
-## 📚 Interactive API Documentation
+```bash
+python -m venv .venv
+.venv\Scripts\activate        # Windows
+pip install -r requirements.txt
 
-- **Swagger UI**: [http://localhost:8000/docs](http://localhost:8000/docs)
-- **ReDoc**: [http://localhost:8000/redoc](http://localhost:8000/redoc)
+# Set environment variables (see .env.example)
+# Start PostgreSQL, then:
+uvicorn app.main:app --reload
+```
 
----
+### Run tests
 
-## 📊 Core API Endpoints Summary
-
-| Method | Endpoint | Description | Auth Required |
-| :--- | :--- | :--- | :---: |
-| `POST` | `/auth/register` | Register a new user account | ❌ No |
-| `POST` | `/auth/login` | Login and receive Bearer JWT access token | ❌ No |
-| `GET` | `/auth/me` | Return authenticated user details | ✅ Bearer JWT |
-| `POST` | `/upload` | Upload & classify document (bounded 10MB limit) | ✅ Bearer JWT |
-| `GET` | `/documents` | List user's documents & categories | ✅ Bearer JWT |
-| `GET` | `/extract/{doc_id}` | Extract structured AI summary | ✅ Bearer JWT |
-| `POST` | `/ask/{doc_id}` | Ask AI question using vector RAG | ✅ Bearer JWT |
-| `GET` | `/chat-history/{doc_id}` | Retrieve Q&A history per document | ✅ Bearer JWT |
-| `DELETE` | `/documents/{doc_id}` | Delete document and associated chunks | ✅ Bearer JWT |
-| `GET` | `/admin/metrics` | Retrieve live JSON route latency & error metrics | 🔒 Admin Token |
-
----
-
-## 🧪 Automated Testing
-
-Run the test suite (37 unit & integration tests):
-
-```powershell
-python -m pytest tests/ --verbose
+```bash
+pytest                        # uses SQLite; no external services required
 ```
 
 ---
 
-## 🛡️ Security & Operational Governance
-- **JWT & Passwords**: Passwords hashed with `bcrypt`. JWT tokens expire according to `ACCESS_TOKEN_EXPIRE_MINUTES`.
-- **Input Validation**: Bounded 64KB streaming size limit (max 10MB) and magic-byte file header verification.
-- **Schema Safety**: Operational rules defined in `.agents/AGENTS.md`.
+## Repository Layout
 
+```
+app/
+  main.py            FastAPI app and route registration
+  auth.py            Token and JWT authentication
+  models.py          SQLAlchemy ORM models
+  ocr_utils.py       Tesseract OCR and text splitting helpers
+  llm_utils.py       Embedding generation, cosine retrieval, and Q&A
+  logging_config.py  structlog configuration
+config/
+  settings.py        Environment-driven settings (CHUNK_SIZE=500, CHUNK_OVERLAP=50)
+scripts/
+  evaluate_rag.py    RAG evaluation script
+  rag_eval_results.json  Pilot evaluation results
+tests/               Pytest suite (SQLite backend)
+docs/screenshots/    UI screenshots (synthetic data)
+docker-compose.yml
+.github/workflows/ci.yml
+```
 
 ---
 
-## 📸 Screenshots & UI Preview
+## License
 
-| Document Upload & Dashboard | Interactive RAG Chat |
-|:---:|:---:|
-| ![Dashboard](docs/screenshots/ui-dashboard.png) | ![Chat](docs/screenshots/ui-chat.png) |
-
-| OCR Text Extraction & Classification | Swagger API Documentation |
-|:---:|:---:|
-| ![OCR Extraction](docs/screenshots/ui-extract.png) | ![Swagger Docs](docs/screenshots/swagger-docs.png) |
-
-| Enterprise Observability & Metrics | RAG Evaluation Benchmark |
-|:---:|:---:|
-| ![Admin Metrics](docs/screenshots/admin-metrics.png) | ![RAG Metrics](docs/screenshots/rag_eval_metrics.png) |
+MIT © 2026 Isra El Amri
